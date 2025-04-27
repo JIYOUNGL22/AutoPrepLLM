@@ -1,8 +1,8 @@
-# LLM 기반 타겟 모델 최적화 데이터 전처리 스크립트 (`llm_auto_preprocess_targeted.py`)
+# LLM 기반 타겟 모델 최적화 데이터 전처리 (Jupyter Notebook)
 
 ## 개요
 
-이 스크립트는 금융 Q&A 데이터를 로드하여 대규모 언어 모델(LLM, 여기서는 GPT-4o)을 사용해 전처리하는 파이썬 스크립트입니다. 특히, 최종적으로 사용할 모델의 유형(`RAG` 또는 `Fine-tuning`)에 따라 최적화된 전처리 작업을 수행하는 것을 목표로 합니다.
+이 문서는 금융 Q&A 데이터를 로드하여 대규모 언어 모델(LLM, 여기서는 GPT-4o)을 사용해 전처리하는 **Jupyter Notebook (`.ipynb`)** 버전에 대한 안내입니다. 노트북은 최종적으로 사용할 모델의 유형(`RAG` 또는 `Fine-tuning`)에 따라 최적화된 전처리 작업을 단계별로 실행하고 결과를 확인할 수 있도록 구성되어 있습니다.
 
 -   **RAG (Retrieval-Augmented Generation) 최적화:** 검색 시스템에서 효과적으로 사용될 수 있도록 답변 내용을 재구성하고, 관련 개체명을 추출합니다.
 -   **Fine-tuning 최적화:** 모델 학습 데이터의 품질과 다양성을 높이기 위해 질문 변형을 생성하고, 답변 스타일을 일관되게 표준화합니다.
@@ -20,44 +20,47 @@
 -   처리 목표 모델 유형(`RAG` 또는 `Fine-tuning`)에 따른 조건부 전처리 실행.
 -   처리된 데이터를 CSV 파일로 저장.
 -   Google Colab 환경 감지 및 지원 (API 키 로딩 등).
+-   단계별 코드 실행 및 중간 결과 확인이 용이한 노트북 인터페이스.
 
 ## 요구사항
 
 -   Python 3.x
--   필수 라이브러리:
+-   **Jupyter Notebook 환경:** Jupyter Lab, Jupyter Notebook, Google Colab, VS Code 등 `.ipynb` 파일을 실행할 수 있는 환경.
+-   **필수 라이브러리:** 노트북 내 첫 번째 코드 셀 또는 터미널에서 설치합니다.
     ```bash
     pip install pandas langchain-openai langchain-core datasets tqdm google-colab # Colab 사용 시
-    # 또는
-    pip install pandas langchain-openai langchain-core datasets tqdm python-dotenv # 로컬 환경 시 (API 키 관리용)
+    # 또는 로컬 환경 등
+    pip install pandas langchain-openai langchain-core datasets tqdm python-dotenv # dotenv 사용 시
     ```
--   OpenAI API 키: 스크립트 실행 환경에 OpenAI API 키가 설정되어 있어야 합니다.
-    -   **Colab:** `userdata.get('OPENAI_API_KEY')`를 사용하여 Colab 시크릿에서 키를 로드합니다.
-    -   **로컬:** 환경 변수 (`os.getenv('OPENAI_API_KEY')`) 등을 통해 API 키를 설정해야 합니다. (스크립트 내 설정 부분 참조)
+-   **OpenAI API 키:** LLM 호출을 위해 유효한 OpenAI API 키가 필요합니다. 노트북 내 지정된 셀에서 설정해야 합니다.
 
 ## 설정
 
-스크립트 실행 전, 다음 사항을 확인하고 필요시 수정하세요.
+노트북 실행 전, **반드시** 다음 설정을 확인하고 필요한 값을 입력해야 합니다.
 
-1.  **OpenAI API 키 설정:** 스크립트 상단의 LLM 초기화 부분에서 API 키가 올바르게 로드되는지 확인합니다.
-2.  **실행 설정 (`if __name__ == "__main__":` 블록 내):**
-    -   `TARGET_MODEL`: 전처리 목표를 설정합니다. `"RAG"` 또는 `"Fine-tuning"` 중 하나를 선택합니다.
-    -   `DATA_SPLIT`: 처리할 데이터의 양을 지정합니다. Hugging Face `datasets` 라이브러리의 슬라이싱 문법을 사용합니다 (예: `'train[:100]'`는 학습 데이터의 첫 100개를 의미). 전체 데이터를 사용하려면 `'train'` 등으로 설정합니다.
-    -   `OUTPUT_FILENAME_BASE`: 저장될 CSV 파일의 기본 이름을 설정합니다. 최종 파일명은 `{OUTPUT_FILENAME_BASE}_{TARGET_MODEL}.csv` 형식이 됩니다 (예: `finance_data_preprocessed_rag.csv`).
-    -   `ft_target_style` (Fine-tuning 시): 답변 스타일 표준화 시 목표 스타일을 정의하는 문자열입니다.
-    -   `ft_num_variations` (Fine-tuning 시): 생성할 질문 변형의 개수입니다.
+1.  **API 키 설정:** 노트북 상단의 **`1. 설정 및 API 키 구성`** 코드 셀을 찾습니다.
+    *   **`YOUR_OPENAI_API_KEY` Placeholder:** 해당 셀 내에서 `api_key = os.getenv('OPENAI_API_KEY', 'YOUR_OPENAI_API_KEY')` 라인 또는 유사한 부분을 찾아 `'YOUR_OPENAI_API_KEY'`를 **본인의 실제 OpenAI API 키 문자열**로 직접 교체하거나, 해당 환경 변수(`OPENAI_API_KEY`)를 설정합니다.
+    *   **Google Colab:** Colab 환경을 사용하는 경우, Colab의 'Secrets' 탭에 `OPENAI_API_KEY`라는 이름으로 키를 저장하면 코드가 자동으로 인식합니다. (별도 수정 불필요)
+    *   **API 키 미설정 시 LLM 초기화 및 이후 단계가 실패합니다.**
+
+2.  **실행 설정:** 동일한 **`1. 설정 및 API 키 구성`** 셀 내에서 다음 변수들을 필요에 따라 수정합니다.
+    *   `TARGET_MODEL`: 전처리 목표를 설정합니다. `"RAG"` 또는 `"Fine-tuning"` 중 하나를 선택합니다. (기본값: `"Fine-tuning"`)
+    *   `DATA_SPLIT`: 처리할 데이터의 양을 지정합니다. Hugging Face `datasets` 라이브러리의 슬라이싱 문법을 사용합니다 (예: `'train[:10]'`는 학습 데이터의 첫 10개를 의미). (기본값: `'train[:10]'`)
+    *   `OUTPUT_FILENAME_BASE`: 저장될 CSV 파일의 기본 이름을 설정합니다. 최종 파일명은 `{OUTPUT_FILENAME_BASE}_{TARGET_MODEL}.csv` 형식이 됩니다. (기본값: `"finance_data_preprocessed"`)
+    *   `ft_target_style` (Fine-tuning 시): 답변 스타일 표준화 시 목표 스타일을 정의하는 문자열입니다. (기본값 제공)
+    *   `ft_num_variations` (Fine-tuning 시): 생성할 질문 변형의 개수입니다. (기본값: `3`)
 
 ## 사용법
 
-1.  필요한 라이브러리를 설치합니다.
-2.  OpenAI API 키를 환경에 맞게 설정합니다.
-3.  스크립트 내 `실행 설정` 부분을 필요에 따라 수정합니다.
-4.  터미널에서 스크립트를 실행합니다:
-    ```bash
-    python llm_auto_preprocess_targeted.py
-    ```
-5.  스크립트 실행이 완료되면, 설정된 `OUTPUT_FILENAME_BASE`와 `TARGET_MODEL`에 따라 전처리된 데이터가 CSV 파일로 저장됩니다. (예: `finance_data_preprocessed_rag.csv` 또는 `finance_data_preprocessed_fine-tuning.csv`)
+1.  **노트북 열기:** 선호하는 Jupyter 환경에서 `.ipynb` 파일을 엽니다.
+2.  **설정 및 API 키 입력:** 위 **'설정'** 섹션의 안내에 따라 **`1. 설정 및 API 키 구성`** 셀에서 API 키와 실행 설정을 완료합니다.
+3.  **셀 순차적 실행:** 노트북의 첫 번째 셀부터 마지막 셀까지 순서대로 실행합니다. 일반적으로 셀을 선택하고 `Shift + Enter` 키를 누릅니다.
+4.  **출력 확인:** 각 코드 셀 실행 후 출력되는 로그 메시지, 데이터 로딩 상태, 전처리 진행률, 최종 DataFrame 미리보기 (`display(...)` 결과) 등을 확인합니다.
+5.  **결과 파일 확인:** 모든 셀 실행이 성공적으로 완료되면, 노트북 파일이 위치한 디렉토리에 설정된 파일명(예: `finance_data_preprocessed_fine-tuning.csv`)으로 전처리된 데이터가 CSV 파일로 저장됩니다.
 
 ## 전처리 상세 내용
+
+(이 섹션은 스크립트 버전과 동일합니다. 전처리 로직 자체는 변경되지 않았습니다.)
 
 ### 공통
 
@@ -65,28 +68,23 @@
 
 ### RAG 타겟 (`TARGET_MODEL = "RAG"`)
 
--   **RAG 답변 재작성 (`rag_answer_context`):** 원본 답변(`answer_B` 또는 `answer_A`)을 RAG 시스템의 검색 결과(컨텍스트)로 사용하기 좋도록 명확하고 정보 중심으로 재작성합니다. LLM이 이 컨텍스트를 바탕으로 최종 답변을 생성하기 용이하도록 하는 것이 목표입니다.
--   **RAG 개체명/키워드 추출 (`rag_entities`):** 재작성된 답변 (또는 원본 답변)에서 중요한 금융 관련 개체명(회사, 상품, 법규 등)이나 핵심 용어를 추출하여 쉼표로 구분된 문자열로 만듭니다. 이는 메타데이터 생성이나 키워드 기반 검색 강화에 사용될 수 있습니다.
+-   **RAG 답변 재작성 (`rag_answer_context`):** 원본 답변(`answer_B` 또는 `answer_A`)을 RAG 시스템의 검색 결과(컨텍스트)로 사용하기 좋도록 명확하고 정보 중심으로 재작성합니다.
+-   **RAG 개체명/키워드 추출 (`rag_entities`):** 재작성된 답변 (또는 원본 답변)에서 중요한 금융 관련 개체명이나 핵심 용어를 추출하여 쉼표로 구분된 문자열로 만듭니다.
 
 ### Fine-tuning 타겟 (`TARGET_MODEL = "Fine-tuning"`)
 
--   **질문 변형 생성 (`ft_question_variations`):** 원본 질문과 동일한 의미를 가지지만 다른 어투나 단어를 사용한 여러 버전의 질문을 생성합니다. 이는 Fine-tuning 데이터의 다양성을 높여 모델의 일반화 성능 향상에 도움을 줄 수 있습니다. 결과는 리스트 형태로 저장됩니다.
--   **답변 스타일 표준화 (`ft_standardized_answer`):** 원본 답변(`answer_B` 또는 `answer_A`)의 핵심 내용은 유지하면서, 미리 정의된 `ft_target_style`에 맞게 문체를 변환합니다. 이는 Fine-tuning 데이터셋 전체의 답변 스타일 일관성을 높여 모델이 특정 톤앤매너를 학습하도록 돕습니다.
+-   **질문 변형 생성 (`ft_question_variations`):** 원본 질문과 동일한 의미를 가지지만 다른 어투나 단어를 사용한 여러 버전의 질문을 생성하여 리스트로 저장합니다.
+-   **답변 스타일 표준화 (`ft_standardized_answer`):** 원본 답변(`answer_B` 또는 `answer_A`)의 핵심 내용은 유지하면서, 미리 정의된 `ft_target_style`에 맞게 문체를 변환합니다.
 
 ## 출력
 
-스크립트는 전처리된 데이터를 담은 Pandas DataFrame을 생성하고, 이를 CSV 파일로 저장합니다. 추가되는 컬럼은 `TARGET_MODEL` 설정에 따라 다릅니다.
+-   **노트북 내 출력:** 코드 셀 실행 시 로그 메시지, 데이터프레임 미리보기 등이 셀 바로 아래에 표시됩니다.
+-   **CSV 파일:** 최종적으로 전처리된 모든 데이터를 포함하는 CSV 파일이 생성됩니다. 파일에는 원본 데이터 컬럼과 함께 아래의 새로운 컬럼들이 포함됩니다.
+    -   **공통 추가 컬럼:** `llm_quality_score`
+    -   **RAG 결과 추가 컬럼:** `rag_answer_context`, `rag_entities`
+    -   **Fine-tuning 결과 추가 컬럼:** `ft_question_variations`, `ft_standardized_answer`
 
--   **공통 추가 컬럼:**
-    -   `llm_quality_score`: LLM이 평가한 답변 품질 점수 (정수).
--   **RAG 결과 추가 컬럼:**
-    -   `rag_answer_context`: RAG용으로 재작성된 답변 (문자열).
-    -   `rag_entities`: 추출된 개체명/키워드 목록 (쉼표 구분 문자열).
--   **Fine-tuning 결과 추가 컬럼:**
-    -   `ft_question_variations`: 생성된 질문 변형 목록 (문자열 리스트).
-    -   `ft_standardized_answer`: 표준화된 스타일의 답변 (문자열).
-
-**(주의)** 아래 예시는 출력 형식과 추가되는 컬럼을 보여주기 위한 것이며, 실제 내용은 LLM의 응답에 따라 달라집니다. 실제 CSV 파일에는 원본 데이터의 모든 컬럼과 함께 아래의 새로운 컬럼들이 포함됩니다.
+**(주의)** 아래 예시는 출력 형식과 추가되는 컬럼을 보여주기 위한 것이며, 실제 내용은 LLM의 응답에 따라 달라집니다.
 
 ### 예상 결과 예시 (`TARGET_MODEL = "RAG"`)
 
@@ -104,6 +102,7 @@
 
 ## 주의사항
 
--   **API 비용 및 속도:** LLM API 호출은 비용이 발생하며, 데이터 양에 따라 처리 시간이 오래 걸릴 수 있습니다. 스크립트 내 `time.sleep()`은 API 속도 제한을 피하기 위한 조치입니다.
--   **입력 데이터 형식:** 스크립트는 입력 DataFrame에 `question`, `answer_A`, `answer_B` 컬럼이 존재한다고 가정합니다. 해당 컬럼이 없으면 빈 값으로 채워지지만, 전처리 결과의 품질에 영향을 미칠 수 있습니다.
--   **LLM 의존성:** 전처리 결과의 품질은 사용된 LLM 모델(기본값: `gpt-4o`)의 성능과 프롬프트 설계에 따라 달라질 수 있습니다.
+-   **API 비용 및 속도:** LLM API 호출은 비용이 발생하며, 데이터 양(`DATA_SPLIT` 설정)과 API 응답 속도에 따라 처리 시간이 오래 걸릴 수 있습니다. 노트북 내 `time.sleep()`은 API 속도 제한(Rate Limit)을 피하기 위한 조치입니다.
+-   **입력 데이터 형식:** 노트북은 입력 DataFrame에 `question`, `answer_A`, `answer_B` 컬럼이 존재한다고 가정합니다. 해당 컬럼이 없으면 빈 값으로 채워지나, 전처리 결과 품질에 영향을 줄 수 있습니다.
+-   **LLM 의존성:** 전처리 결과의 품질은 사용된 LLM 모델(기본값: `gpt-4o`)의 성능과 프롬프트 설계에 따라 달라질 수 있습니다. 프롬프트는 노트북 내 함수 정의 셀에서 확인 및 수정 가능합니다.
+-   **오류 처리:** API 키 오류, 네트워크 문제 등으로 특정 셀 실행이 실패할 수 있습니다. 오류 메시지를 확인하고 문제를 해결한 후 해당 셀부터 다시 실행하세요.
